@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+  <meta name="theme-color" content="#080808"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="VELOX"/>
+  <title>VELOX</title>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="/static/ui.css"/>
+</head>
+<body>
+
+<!-- MAPA -->
+<div id="mapa"></div>
+<div id="overlay"></div>
+
+<!-- HEADER -->
+<header id="header">
+  <div class="logo">
+    <svg class="logo-bolt" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/>
+    </svg>
+    <span style="color:var(--txt)">VEL</span><span>OX</span>
+  </div>
+  <div class="badges">
+    <div class="badge" id="badge-rede" onclick="VX.verificarRede()">
+      <div class="dot" id="dot-rede"></div>
+      <span id="txt-rede">—</span>
+    </div>
+    <div class="badge" id="badge-gps">
+      <div class="dot" id="dot-gps"></div>
+      <span id="txt-gps">GPS</span>
+    </div>
+    <div class="badge" onclick="VX.conectarBLE()">
+      <div class="dot" id="dot-ble"></div>
+      <span id="txt-ble">BLE</span>
+    </div>
+  </div>
+</header>
+
+<div id="aviso-offline">⚡ Offline — dados salvos localmente</div>
+
+<!-- ═══════════════════════════════
+     SCREEN: HOME
+═══════════════════════════════ -->
+<div class="screen ativa" id="screen-home">
+
+  <!-- Hero semanal -->
+  <div class="home-hero">
+    <div class="home-hero-label">Esta semana</div>
+    <div>
+      <span class="home-hero-val" id="home-km-semana">0.0</span>
+      <span class="home-hero-unit"> km</span>
+    </div>
+    <div class="home-hero-sub" id="home-treinos-semana">0 treinos esta semana</div>
+    <div class="home-hero-badge" id="home-variacao">↑ 0% vs semana anterior</div>
+  </div>
+
+  <!-- Stats rápidos -->
+  <div class="cards-2">
+    <div class="stat-card">
+      <div class="si">🔥</div>
+      <div class="sv" id="home-cal-semana" style="color:#f97316">0</div>
+      <div class="sl">kcal semana</div>
+    </div>
+    <div class="stat-card">
+      <div class="si">⏱️</div>
+      <div class="sv" id="home-tempo-semana">0h 0m</div>
+      <div class="sl">tempo ativo</div>
+    </div>
+    <div class="stat-card">
+      <div class="si">📏</div>
+      <div class="sv" id="home-km-total" style="color:var(--green)">0.0</div>
+      <div class="sl">km totais</div>
+    </div>
+    <div class="stat-card">
+      <div class="si">🏆</div>
+      <div class="sv" id="home-total-treinos">0</div>
+      <div class="sl">treinos totais</div>
+    </div>
+  </div>
+
+  <!-- Desafios -->
+  <div class="section-title">Desafios</div>
+
+  <div class="challenge-card verde">
+    <div class="ch-titulo">🎯 Desafio 30km</div>
+    <div class="ch-desc">Complete 30km este mês e ganhe o badge de Elite Runner!</div>
+    <div class="ch-prog-bar"><div class="ch-prog-fill" id="ch1-fill" style="width:0%"></div></div>
+    <div class="ch-prog-txt">
+      <span id="ch1-atual">0 km</span>
+      <span>30 km</span>
+    </div>
+    <button class="ch-btn">Ver detalhes →</button>
+  </div>
+
+  <div class="challenge-card roxo">
+    <div class="ch-titulo">⚡ Sequência de 7 dias</div>
+    <div class="ch-desc">Treine 7 dias seguidos e desbloqueie o modo Lendário!</div>
+    <div class="ch-prog-bar"><div class="ch-prog-fill" id="ch2-fill" style="width:0%"></div></div>
+    <div class="ch-prog-txt">
+      <span id="ch2-atual">0 dias</span>
+      <span>7 dias</span>
+    </div>
+    <button class="ch-btn">Participar →</button>
+  </div>
+
+  <!-- Ranking -->
+  <div class="section-title">Ranking Semanal</div>
+  <div id="ranking-lista" style="background:var(--bg1);border:1px solid var(--brd);border-radius:16px;padding:4px 14px 4px;margin-bottom:80px;">
+    <div class="ranking-item">
+      <div class="rank-num top1">1</div>
+      <div class="rank-avatar">🏃</div>
+      <div style="flex:1"><div class="rank-name">Budi Santos</div></div>
+      <div class="rank-dist" style="color:var(--amber)">42.5 km</div>
+    </div>
+    <div class="ranking-item">
+      <div class="rank-num top2">2</div>
+      <div class="rank-avatar">🚴</div>
+      <div style="flex:1"><div class="rank-name">Ana Lima</div></div>
+      <div class="rank-dist">38.2 km</div>
+    </div>
+    <div class="ranking-item">
+      <div class="rank-num top3">3</div>
+      <div class="rank-avatar">🏃</div>
+      <div style="flex:1"><div class="rank-name">Carlos M.</div></div>
+      <div class="rank-dist">31.7 km</div>
+    </div>
+    <div class="ranking-item" style="background:rgba(57,255,20,0.05);margin:0 -14px;padding:10px 14px;border-radius:0 0 12px 12px;">
+      <div class="rank-num" style="color:var(--green)" id="rank-pos">—</div>
+      <div class="rank-avatar">⭐</div>
+      <div style="flex:1">
+        <div class="rank-name">Você</div>
+        <div class="rank-you">sua posição</div>
+      </div>
+      <div class="rank-dist" style="color:var(--green)" id="rank-km-voce">0 km</div>
+    </div>
+  </div>
+
+</div><!-- /home -->
+
+<!-- ═══════════════════════════════
+     SCREEN: TREINO
+═══════════════════════════════ -->
+<div class="screen" id="screen-treino">
+
+  <div id="seletor-atividade">
+    <button class="btn-ativ ativo" id="btn-corrida" onclick="VX.setAtividade('corrida')">🏃 CORRIDA</button>
+    <button class="btn-ativ" id="btn-ciclismo"  onclick="VX.setAtividade('ciclismo')">🚴 BIKE</button>
+    <button class="btn-ativ" id="btn-caminhada" onclick="VX.setAtividade('caminhada')">🚶 CAMINHADA</button>
+  </div>
+
+  <div id="painel">
+    <div id="timer-wrap">
+      <div id="timer">00:00:00</div>
+      <div id="timer-lbl">DURAÇÃO DO TREINO</div>
+    </div>
+
+    <div id="grade">
+      <div class="met"><div class="met-l">DIST.</div><div class="met-v" id="v-dist">0.00</div><div class="met-u">km</div></div>
+      <div class="met"><div class="met-l">PACE</div><div class="met-v" id="v-pace">--:--</div><div class="met-u">min/km</div></div>
+      <div class="met bpm"><div class="met-l">FC</div><div class="met-v" id="v-bpm">---</div><div class="met-u">bpm</div></div>
+      <div class="met"><div class="met-l">VEL.</div><div class="met-v" id="v-vel">0.0</div><div class="met-u">km/h</div></div>
+    </div>
+
+    <div id="ctrls">
+      <button class="btn-s" onclick="VX.abrirHistorico()">
+        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+        HIST.
+      </button>
+      <button id="btn-go" onclick="VX.alternarTreino()">
+        <span id="btn-icone">▶</span>
+        <span id="btn-texto">INICIAR</span>
+      </button>
+      <button class="btn-s" onclick="VX.abrirConfig()">
+        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        CFG.
+      </button>
+    </div>
+
+    <div id="pendentes-bar">⏳ <span id="qtd-pendentes">0</span> pts aguardando sync</div>
+  </div>
+
+</div><!-- /treino -->
+
+<!-- ═══════════════════════════════
+     NAV BAR
+═══════════════════════════════ -->
+<nav id="nav">
+  <button class="nav-tab ativo" id="nav-home" onclick="VX.irPara('home')">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>
+    <span>HOME</span>
+  </button>
+  <button class="nav-tab" id="nav-treino" onclick="VX.irPara('treino')">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9"/></svg>
+    <span>TREINAR</span>
+  </button>
+  <button class="nav-tab" id="nav-historico" onclick="VX.abrirHistorico()">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+    <span>HISTÓRICO</span>
+  </button>
+  <button class="nav-tab" id="nav-config" onclick="VX.abrirConfig()">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+    <span>PERFIL</span>
+  </button>
+</nav>
+
+<!-- PAUSA -->
+<div id="painel-pause">
+  <div class="pause-card">
+    <div class="pause-t">PAUSADO</div>
+    <div class="pause-info" id="pause-info">Treino em pausa</div>
+    <div class="pause-btns">
+      <button class="pause-btn fim" onclick="VX.finalizarTreino()">FINALIZAR</button>
+      <button class="pause-btn ok"  onclick="VX.retomarTreino()">RETOMAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESUMO -->
+<div class="modal" id="modal-resumo">
+  <div class="modal-hdr">
+    <div class="modal-tit">🏆 TREINO CONCLUÍDO</div>
+    <button class="btn-x" onclick="VX.fecharResumo()">✕</button>
+  </div>
+  <div class="modal-body" id="modal-resumo-body"></div>
+</div>
+
+<!-- MODAL HISTÓRICO -->
+<div class="modal" id="modal-historico">
+  <div class="modal-hdr">
+    <div class="modal-tit">📊 HISTÓRICO</div>
+    <button class="btn-x" onclick="VX.fecharHistorico()">✕</button>
+  </div>
+  <div class="modal-body" id="lista-treinos">
+    <p style="color:var(--txt3);text-align:center;padding:40px 0;">Carregando...</p>
+  </div>
+</div>
+
+<!-- MODAL CONFIG -->
+<div class="modal" id="modal-config">
+  <div class="modal-hdr">
+    <div class="modal-tit">⚙️ CONFIGURAÇÕES</div>
+    <button class="btn-x" onclick="VX.fecharConfig()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="cfg-sec">
+      <div class="cfg-tit">Perfil do Atleta</div>
+      <div class="cfg-row"><span class="cfg-lbl">Nome</span><input class="input-n" type="text" id="cfg-nome" value="Atleta" style="width:120px;text-align:right;" onchange="VX.salvarConfig()"/></div>
+      <div class="cfg-row"><span class="cfg-lbl">Idade</span><input class="input-n" type="number" id="cfg-idade" value="30" min="10" max="99" onchange="VX.salvarConfig()"/></div>
+      <div class="cfg-row"><span class="cfg-lbl">Peso (kg)</span><input class="input-n" type="number" id="cfg-peso" value="70" min="30" max="200" onchange="VX.salvarConfig()"/></div>
+      <div class="cfg-row"><span class="cfg-lbl">FC Máxima estimada</span><span style="font-family:var(--font-d);font-size:15px;font-weight:700;" id="cfg-fcmax">190 bpm</span></div>
+    </div>
+    <div class="cfg-sec">
+      <div class="cfg-tit">Sensor Cardíaco</div>
+      <div class="cfg-row">
+        <span class="cfg-lbl" id="ble-status-cfg">Nenhum sensor conectado</span>
+        <button class="btn-s" style="width:auto;height:auto;padding:7px 14px;font-size:11px;" onclick="VX.conectarBLE()">CONECTAR</button>
+      </div>
+    </div>
+    <div class="cfg-sec">
+      <div class="cfg-tit">GPS e Treino</div>
+      <div class="cfg-row"><span class="cfg-lbl">Alta precisão GPS</span><label class="toggle"><input type="checkbox" id="cfg-precisao" checked onchange="VX.salvarConfig()"/><div class="tg-tr"></div><div class="tg-th"></div></label></div>
+      <div class="cfg-row"><span class="cfg-lbl">Manter tela ligada</span><label class="toggle"><input type="checkbox" id="cfg-wakelock" checked onchange="VX.salvarConfig()"/><div class="tg-tr"></div><div class="tg-th"></div></label></div>
+      <div class="cfg-row"><span class="cfg-lbl">Áudio pós-treino (J.A.R.V.I.S.)</span><label class="toggle"><input type="checkbox" id="cfg-audio" checked onchange="VX.salvarConfig()"/><div class="tg-tr"></div><div class="tg-th"></div></label></div>
+    </div>
+    <div class="cfg-sec">
+      <div class="cfg-tit">Dados</div>
+      <div class="cfg-row"><span class="cfg-lbl">Sincronizar pendentes</span><button class="btn-s" style="width:auto;height:auto;padding:7px 14px;font-size:11px;" onclick="VX.sincronizarManual()">SYNC</button></div>
+      <div class="cfg-row"><span class="cfg-lbl">Exportar último treino</span><button class="btn-s" style="width:auto;height:auto;padding:7px 14px;font-size:11px;" onclick="VX.exportarGPX()">GPX</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
