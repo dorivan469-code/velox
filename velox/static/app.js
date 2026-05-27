@@ -3,6 +3,15 @@
  * Reescrito do zero para garantir funcionamento correto
  */
 'use strict';
+let ultimoResumo = null; // Guarda resumo para compartilhar
+
+// Injeta animação CSS do marcador pulsante
+(function() {
+  const style = document.createElement('style');
+  style.textContent = '@keyframes pulsoMarcador{0%{transform:scale(1);opacity:0.3}70%{transform:scale(2.5);opacity:0}100%{transform:scale(2.5);opacity:0}}';
+  document.head.appendChild(style);
+})();
+
 
 // ─────────────────────────────────────────────
 // ESTADO GLOBAL
@@ -92,42 +101,141 @@ async function treinosTodos() {
 }
 
 // ─────────────────────────────────────────────
-// MAPA LEAFLET
+// MAPA LEAFLET – Nível Strava
+// Tiles escuros, rota com gradiente de
+// velocidade/BPM, marcadores de km,
+// ponto início/fim, glow na rota
 // ─────────────────────────────────────────────
-let mapa = null, marcador = null, polilinha = null;
+let mapa = null, marcador = null;
+let segmentosRota  = [];
+let marcadoresKm   = [];
+let marcadorInicio = null;
+let marcadorFim    = null;
+let ultimoKmMarcado = 0;
+
+function corPorVelocidade(velKmh, tipo) {
+  const refs = {
+    corrida:   { lenta:6,  media:10, rapida:14 },
+    ciclismo:  { lenta:15, media:25, rapida:35 },
+    caminhada: { lenta:3,  media:5,  rapida:7  },
+  };
+  const ref = refs[tipo] || refs.corrida;
+  if (velKmh <= 0)          return '#818cf8';
+  if (velKmh < ref.lenta)   return '#4da6ff';
+  if (velKmh < ref.media)   return '#39ff14';
+  if (velKmh < ref.rapida)  return '#ffb347';
+  return '#ff4757';
+}
+
+function corPorBPM(bpm) {
+  if (!bpm || bpm < 30) return null;
+  const pct = (bpm / fcMax()) * 100;
+  if (pct < 60) return '#4da6ff';
+  if (pct < 70) return '#39ff14';
+  if (pct < 80) return '#ffb347';
+  if (pct < 90) return '#ff8c42';
+  return '#ff4757';
+}
 
 function initMapa() {
-  mapa = L.map('mapa', { zoomControl: false, attributionControl: true })
-           .setView([-14.235, -51.925], 4);
+  mapa = L.map('mapa', {
+    zoomControl: false, attributionControl: true,
+    zoomAnimation: true, fadeAnimation: true,
+  }).setView([-14.235, -51.925], 4);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap',
-    maxZoom: 19,
+  // Tiles escuros CartoDB (gratuito, sem API key)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CartoDB',
+    maxZoom: 19, subdomains: 'abcd',
   }).addTo(mapa);
 
   navigator.geolocation?.getCurrentPosition(
     pos => {
-      mapa.setView([pos.coords.latitude, pos.coords.longitude], 16);
+      mapa.setView([pos.coords.latitude, pos.coords.longitude], 17);
       moverMarcador(pos.coords.latitude, pos.coords.longitude);
     },
-    null,
-    { enableHighAccuracy: false, timeout: 10000 }
+    null, { enableHighAccuracy: false, timeout: 10000 }
   );
 }
 
 function moverMarcador(lat, lng) {
-  const cor  = ST.ativo && !ST.pausado ? '#39ff14' : '#4da6ff';
-  const html = `<div style="width:18px;height:18px;border-radius:50%;background:${cor};border:3px solid #fff;box-shadow:0 0 14px ${cor};"></div>`;
-  const icon = L.divIcon({ className: '', html, iconSize: [18,18], iconAnchor: [9,9] });
-  if (marcador) { marcador.setLatLng([lat, lng]); marcador.setIcon(icon); }
-  else           { marcador = L.marker([lat, lng], { icon }).addTo(mapa); }
+  const html = ST.ativo && !ST.pausado
+    ? `<div style="position:relative;width:24px;height:24px;">
+        <div style="position:absolute;inset:0;border-radius:50%;background:#39ff14;
+          opacity:0.3;animation:pulsoMarcador 1.5s ease-out infinite;"></div>
+        <div style="position:absolute;top:3px;left:3px;width:18px;height:18px;
+          border-radius:50%;background:#39ff14;border:2.5px solid #fff;
+          box-shadow:0 0 12px #39ff14;"></div>
+      </div>`
+    : `<div style="width:16px;height:16px;border-radius:50%;background:#4da6ff;
+        border:3px solid #fff;box-shadow:0 0 10px #4da6ff;"></div>`;
+  const sz   = ST.ativo && !ST.pausado ? [24,24] : [16,16];
+  const anc  = ST.ativo && !ST.pausado ? [12,12] : [8,8];
+  const icon = L.divIcon({ className:'', html, iconSize:sz, iconAnchor:anc });
+  if (marcador) { marcador.setLatLng([lat,lng]); marcador.setIcon(icon); }
+  else           { marcador = L.marker([lat,lng],{icon,zIndexOffset:1000}).addTo(mapa); }
 }
 
 function atualizarRota() {
-  if (ST.pontosRota.length < 2) return;
-  const coords = ST.pontosRota.map(p => [p.lat, p.lng]);
-  if (polilinha) polilinha.setLatLngs(coords);
-  else polilinha = L.polyline(coords, { color:'#39ff14', weight:4, opacity:0.9 }).addTo(mapa);
+  const pts = ST.pontosRota;
+  if (pts.length < 2) return;
+  const i  = pts.length - 1;
+  const p1 = pts[i-1], p2 = pts[i];
+  const cor = p2.bpm > 30
+    ? (corPorBPM(p2.bpm) || corPorVelocidade(p2.velocidade, ST.tipo))
+    : corPorVelocidade(p2.velocidade, ST.tipo);
+
+  // Sombra (glow)
+  segmentosRota.push(L.polyline([[p1.lat,p1.lng],[p2.lat,p2.lng]],
+    {color:cor, weight:12, opacity:0.15, lineCap:'round', lineJoin:'round'}).addTo(mapa));
+  // Linha principal
+  segmentosRota.push(L.polyline([[p1.lat,p1.lng],[p2.lat,p2.lng]],
+    {color:cor, weight:5, opacity:0.95, lineCap:'round', lineJoin:'round'}).addTo(mapa));
+
+  // Marcador de início
+  if (pts.length === 2 && !marcadorInicio) {
+    marcadorInicio = L.marker([p1.lat,p1.lng], {
+      icon: L.divIcon({className:'',
+        html:`<div style="width:12px;height:12px;border-radius:50%;background:#39ff14;border:2px solid #fff;box-shadow:0 0 8px #39ff14;"></div>`,
+        iconSize:[12,12], iconAnchor:[6,6]})
+    }).addTo(mapa).bindPopup('<b>Início</b>');
+  }
+
+  // Marcadores de km
+  const kmAtual = Math.floor(ST.distM / 1000);
+  if (kmAtual > ultimoKmMarcado && kmAtual > 0) {
+    ultimoKmMarcado = kmAtual;
+    marcadoresKm.push(L.marker([p2.lat,p2.lng], {
+      icon: L.divIcon({className:'',
+        html:`<div style="background:#080808;border:1.5px solid #39ff14;border-radius:999px;padding:2px 7px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;color:#39ff14;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.5);">${kmAtual} km</div>`,
+        iconSize:[50,20], iconAnchor:[25,10]})
+    }).addTo(mapa));
+  }
+}
+
+function finalizarRotaNoMapa() {
+  const pts = ST.pontosRota;
+  if (!pts.length) return;
+  const u = pts[pts.length-1];
+  if (marcadorFim) mapa.removeLayer(marcadorFim);
+  marcadorFim = L.marker([u.lat,u.lng], {
+    icon: L.divIcon({className:'',
+      html:`<div style="width:12px;height:12px;border-radius:50%;background:#ff4757;border:2px solid #fff;box-shadow:0 0 8px #ff4757;"></div>`,
+      iconSize:[12,12], iconAnchor:[6,6]})
+  }).addTo(mapa).bindPopup('<b>Fim</b>');
+}
+
+function limparRota() {
+  segmentosRota.forEach(s => mapa.removeLayer(s)); segmentosRota = [];
+  marcadoresKm.forEach(m => mapa.removeLayer(m));  marcadoresKm  = [];
+  if (marcadorInicio) { mapa.removeLayer(marcadorInicio); marcadorInicio = null; }
+  if (marcadorFim)    { mapa.removeLayer(marcadorFim);    marcadorFim    = null; }
+  ultimoKmMarcado = 0;
+}
+
+function centralizarNaRota(pontos) {
+  if (!pontos?.length) return;
+  mapa.fitBounds(L.latLngBounds(pontos.map(p=>[p.lat,p.lng])), {padding:[60,60], animate:true});
 }
 
 // ─────────────────────────────────────────────
@@ -294,7 +402,7 @@ async function iniciarTreino() {
   await ativarWakeLock();
 
   // Limpa rota do mapa
-  if (polilinha) { mapa.removeLayer(polilinha); polilinha = null; }
+  limparRota();
 
   // Atualiza botão
   const btnGo = document.getElementById('btn-go');
@@ -401,6 +509,9 @@ async function finalizarTreino() {
     }
   } catch { toast('📦 Salvo offline — sincronizará depois'); }
 
+  finalizarRotaNoMapa();
+  centralizarNaRota(resumo.pontos);
+  ultimoResumo = resumo;
   mostrarResumo(resumo);
 }
 
@@ -828,7 +939,214 @@ async function inicializar() {
   // Auto-start via URL
   const params = new URLSearchParams(location.search);
   if (params.get('modo')) setAtividade(params.get('modo'));
+  verificarLogin();
   console.log('✅ VELOX pronto!');
+}
+
+
+// ─────────────────────────────────────────────
+// CADASTRO / LOGIN
+// ─────────────────────────────────────────────
+
+function mostrarTab(tab) {
+  const fl = document.getElementById('form-login');
+  const fc = document.getElementById('form-cadastro');
+  const tl = document.getElementById('tab-login');
+  const tc = document.getElementById('tab-cadastro');
+  if (tab === 'login') {
+    fl.style.display = 'block'; fc.style.display = 'none';
+    tl.style.background = '#39ff14'; tl.style.color = '#000';
+    tc.style.background = 'transparent'; tc.style.color = '#444';
+  } else {
+    fl.style.display = 'none'; fc.style.display = 'block';
+    tc.style.background = '#39ff14'; tc.style.color = '#000';
+    tl.style.background = 'transparent'; tl.style.color = '#444';
+  }
+}
+
+async function fazerCadastro() {
+  const nome  = document.getElementById('cad-nome')?.value?.trim();
+  const email = document.getElementById('cad-email')?.value?.trim();
+  const senha = document.getElementById('cad-senha')?.value;
+  const idade = parseInt(document.getElementById('cad-idade')?.value) || 30;
+  const peso  = parseFloat(document.getElementById('cad-peso')?.value) || 70;
+
+  if (!nome)  { toast('⚠️ Digite seu nome');   return; }
+  if (!email) { toast('⚠️ Digite seu email');  return; }
+  if (!senha || senha.length < 6) { toast('⚠️ Senha mínimo 6 caracteres'); return; }
+
+  // Salva localmente (MVP sem backend de auth)
+  const usuario = { nome, email, idade, peso, criadoEm: Date.now() };
+  localStorage.setItem('velox_usuario', JSON.stringify(usuario));
+
+  // Salva config
+  ST.cfg.nome  = nome;
+  ST.cfg.idade = idade;
+  ST.cfg.peso  = peso;
+  localStorage.setItem('velox_cfg', JSON.stringify(ST.cfg));
+
+  toast(`🎉 Bem-vindo(a), ${nome}!`);
+  setTimeout(() => fecharOnboarding(), 800);
+}
+
+async function fazerLogin() {
+  const email = document.getElementById('login-email')?.value?.trim();
+  const senha = document.getElementById('login-senha')?.value;
+
+  if (!email || !senha) { toast('⚠️ Preencha email e senha'); return; }
+
+  // Verifica se usuário existe localmente
+  const u = JSON.parse(localStorage.getItem('velox_usuario') || 'null');
+  if (u && u.email === email) {
+    ST.cfg.nome  = u.nome;
+    ST.cfg.idade = u.idade || 30;
+    ST.cfg.peso  = u.peso  || 70;
+    toast(`⚡ Bem-vindo(a) de volta, ${u.nome}!`);
+    setTimeout(() => fecharOnboarding(), 600);
+  } else {
+    toast('⚠️ Email não encontrado. Faça o cadastro!');
+    mostrarTab('cadastro');
+  }
+}
+
+function fecharOnboarding() {
+  const tela = document.getElementById('tela-onboarding');
+  if (tela) {
+    tela.style.opacity = '0';
+    tela.style.transition = 'opacity 0.4s';
+    setTimeout(() => { tela.style.display = 'none'; }, 400);
+  }
+  localStorage.setItem('velox_logado', '1');
+}
+
+function verificarLogin() {
+  const logado  = localStorage.getItem('velox_logado');
+  const usuario = localStorage.getItem('velox_usuario');
+  if (logado && usuario) {
+    const u = JSON.parse(usuario);
+    ST.cfg.nome  = u.nome;
+    ST.cfg.idade = u.idade || 30;
+    ST.cfg.peso  = u.peso  || 70;
+    fecharOnboarding();
+  }
+  // Se não logado, tela de onboarding fica visível
+}
+
+// ─────────────────────────────────────────────
+// CARD DE TREINO PARA REDES SOCIAIS
+// ─────────────────────────────────────────────
+
+let mapaShare = null;
+
+function abrirShare(resumo) {
+  if (!resumo) { toast('⚠️ Nenhum treino para compartilhar'); return; }
+
+  const modal = document.getElementById('modal-share');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  const icones = { corrida:'🏃', ciclismo:'🚴', caminhada:'🚶' };
+  const dist   = (resumo.distanciaMetros / 1000).toFixed(2);
+  const dur    = formatDuracao(resumo.duracaoSegundos || 0);
+  const data   = new Date(resumo.inicio).toLocaleDateString('pt-BR', {
+    day:'2-digit', month:'short', year:'numeric'
+  });
+  const usuario = JSON.parse(localStorage.getItem('velox_usuario') || '{}');
+
+  // Preenche o card
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  set('share-dist',          dist);
+  set('share-tempo',         dur);
+  set('share-pace',          resumo.pace || '--:--');
+  set('share-cal',           resumo.calorias || 0);
+  set('share-nome-atleta',   `@${(usuario.nome||'atleta').toLowerCase().replace(/\s+/g,'')}`);
+  set('share-data',          data);
+
+  const tipoBadge = document.getElementById('share-tipo-badge');
+  if (tipoBadge) tipoBadge.textContent = `${icones[resumo.tipo]||'🏃'} ${(resumo.tipo||'corrida').toUpperCase()}`;
+
+  // BPM (se disponível)
+  const bpmRow = document.getElementById('share-bpm-row');
+  if (resumo.bpmMedio > 0 && bpmRow) {
+    bpmRow.style.display = 'flex';
+    set('share-bpm', `${resumo.bpmMedio} bpm`);
+  }
+
+  // Mini mapa da rota no card
+  setTimeout(() => {
+    const mapaEl = document.getElementById('share-mapa');
+    if (mapaEl && resumo.pontos?.length > 1) {
+      if (mapaShare) { mapaShare.remove(); mapaShare = null; }
+      mapaShare = L.map('share-mapa', {
+        zoomControl:false, attributionControl:false,
+        dragging:false, touchZoom:false, scrollWheelZoom:false,
+      });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        subdomains:'abcd'
+      }).addTo(mapaShare);
+      const coords = resumo.pontos.map(p=>[p.lat,p.lng]);
+      // Rota com gradiente
+      for (let i = 1; i < resumo.pontos.length; i++) {
+        const p1 = resumo.pontos[i-1], p2 = resumo.pontos[i];
+        const cor = corPorVelocidade(p2.velocidade || 0, resumo.tipo);
+        L.polyline([[p1.lat,p1.lng],[p2.lat,p2.lng]], {
+          color:cor, weight:4, opacity:0.9, lineCap:'round'
+        }).addTo(mapaShare);
+      }
+      mapaShare.fitBounds(L.latLngBounds(coords), {padding:[16,16]});
+    }
+  }, 100);
+}
+
+async function baixarCard() {
+  const card = document.getElementById('share-card');
+  if (!card) return;
+  toast('📸 Gerando imagem...');
+  try {
+    const canvas = await html2canvas(card, {
+      backgroundColor: '#0d0d0d',
+      scale: 2,  // Alta resolução
+      useCORS: true,
+      logging: false,
+    });
+    const link = document.createElement('a');
+    link.download = `velox_treino_${Date.now()}.png`;
+    link.href     = canvas.toDataURL('image/png');
+    link.click();
+    toast('✅ Imagem salva! Compartilhe nas redes!');
+  } catch(e) {
+    console.error('[Share]', e);
+    toast('⚠️ Erro ao gerar imagem. Tente fazer screenshot.');
+  }
+}
+
+async function compartilharNativo() {
+  const card = document.getElementById('share-card');
+  if (!card) return;
+  // Tenta Web Share API (funciona no mobile)
+  if (navigator.share) {
+    try {
+      const canvas = await html2canvas(card, { backgroundColor:'#0d0d0d', scale:2, useCORS:true, logging:false });
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], 'velox_treino.png', { type:'image/png' });
+        await navigator.share({
+          title: 'Meu treino no VELOX ⚡',
+          text:  `Acabei de completar um treino incrível! 🏃`,
+          files: [file],
+        });
+      }, 'image/png');
+    } catch(e) {
+      if (e.name !== 'AbortError') toast('⚠️ Erro ao compartilhar');
+    }
+  } else {
+    // Fallback: salva a imagem
+    await baixarCard();
+  }
+}
+
+function fecharShare() {
+  const modal = document.getElementById('modal-share');
+  if (modal) modal.style.display = 'none';
 }
 
 // ─────────────────────────────────────────────
@@ -850,6 +1168,13 @@ window.VX = {
   fecharResumo,
   sincronizarManual,
   irPara,
+  mostrarTab,
+  fazerLogin,
+  fazerCadastro,
+  abrirShare,
+  baixarCard,
+  compartilharNativo,
+  fecharShare,
 };
 
 window.playAudio = (url) => new Audio(url).play().catch(()=>{});
