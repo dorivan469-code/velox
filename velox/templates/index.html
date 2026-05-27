@@ -12,8 +12,202 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <link rel="stylesheet" href="/static/ui.css"/>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 </head>
 <body>
+
+
+<!-- ═══════════════════════════════
+     TELA DE ONBOARDING / CADASTRO
+     Aparece apenas na primeira vez
+═══════════════════════════════ -->
+<div id="tela-onboarding" style="
+  position:fixed;inset:0;z-index:9999;
+  background:#080808;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:32px 24px;
+  overflow-y:auto;
+">
+
+  <!-- Logo grande -->
+  <div style="text-align:center;margin-bottom:40px;">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="#39ff14" style="filter:drop-shadow(0 0 20px #39ff14);margin-bottom:12px;">
+      <path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/>
+    </svg>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:48px;font-weight:900;letter-spacing:4px;color:#fff;line-height:1;">VELOX</div>
+    <div style="font-size:12px;color:#444;letter-spacing:0.2em;margin-top:4px;">CORRIDA · CICLISMO · CAMINHADA</div>
+  </div>
+
+  <!-- Tabs Login / Cadastro -->
+  <div style="display:flex;gap:0;background:#111;border:1px solid #222;border-radius:12px;padding:4px;margin-bottom:24px;width:100%;max-width:340px;">
+    <button id="tab-login" onclick="VX.mostrarTab('login')"
+      style="flex:1;padding:9px;border-radius:8px;border:none;background:#39ff14;color:#000;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:1px;cursor:pointer;">
+      ENTRAR
+    </button>
+    <button id="tab-cadastro" onclick="VX.mostrarTab('cadastro')"
+      style="flex:1;padding:9px;border-radius:8px;border:none;background:transparent;color:#444;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:1px;cursor:pointer;">
+      CADASTRAR
+    </button>
+  </div>
+
+  <!-- Formulário LOGIN -->
+  <div id="form-login" style="width:100%;max-width:340px;">
+    <div style="margin-bottom:12px;">
+      <label style="font-size:10px;color:#444;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px;">Email</label>
+      <input id="login-email" type="email" placeholder="seu@email.com"
+        style="width:100%;background:#111;border:1px solid #222;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;"
+        onfocus="this.style.borderColor='#39ff14'" onblur="this.style.borderColor='#222'"/>
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="font-size:10px;color:#444;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px;">Senha</label>
+      <input id="login-senha" type="password" placeholder="••••••••"
+        style="width:100%;background:#111;border:1px solid #222;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;"
+        onfocus="this.style.borderColor='#39ff14'" onblur="this.style.borderColor='#222'"/>
+    </div>
+    <button onclick="VX.fazerLogin()"
+      style="width:100%;padding:14px;border-radius:12px;border:none;background:#39ff14;color:#000;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;cursor:pointer;">
+      ENTRAR
+    </button>
+    <p style="text-align:center;font-size:11px;color:#333;margin-top:16px;">
+      Não tem conta? <span onclick="VX.mostrarTab('cadastro')" style="color:#39ff14;cursor:pointer;">Cadastre-se grátis</span>
+    </p>
+  </div>
+
+  <!-- Formulário CADASTRO -->
+  <div id="form-cadastro" style="width:100%;max-width:340px;display:none;">
+    <div style="margin-bottom:10px;">
+      <label style="font-size:10px;color:#444;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px;">Nome</label>
+      <input id="cad-nome" type="text" placeholder="Seu nome"
+        style="width:100%;background:#111;border:1px solid #222;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;"
+        onfocus="this.style.borderColor='#39ff14'" onblur="this.style.borderColor='#222'"/>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:10px;color:#444;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px;">Email</label>
+      <input id="cad-email" type="email" placeholder="seu@email.com"
+        style="width:100%;background:#111;border:1px solid #222;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;"
+        onfocus="this.style.borderColor='#39ff14'" onblur="this.style.borderColor='#222'"/>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:10px;color:#444;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px;">Senha</label>
+      <input id="cad-senha" type="password" placeholder="Mínimo 6 caracteres"
+        style="width:100%;background:#111;border:1px solid #222;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;"
+        onfocus="this.style.borderColor='#39ff14'" onblur="this.style.borderColor='#222'"/>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:10px;color:#444;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px;">Idade</label>
+        <input id="cad-idade" type="number" placeholder="30" min="10" max="99"
+          style="width:100%;background:#111;border:1px solid #222;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;"
+          onfocus="this.style.borderColor='#39ff14'" onblur="this.style.borderColor='#222'"/>
+      </div>
+      <div>
+        <label style="font-size:10px;color:#444;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:5px;">Peso (kg)</label>
+        <input id="cad-peso" type="number" placeholder="70" min="30" max="200"
+          style="width:100%;background:#111;border:1px solid #222;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;"
+          onfocus="this.style.borderColor='#39ff14'" onblur="this.style.borderColor='#222'"/>
+      </div>
+    </div>
+    <button onclick="VX.fazerCadastro()"
+      style="width:100%;padding:14px;border-radius:12px;border:none;background:#39ff14;color:#000;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;cursor:pointer;">
+      CRIAR CONTA
+    </button>
+    <p style="text-align:center;font-size:11px;color:#333;margin-top:16px;">
+      Já tem conta? <span onclick="VX.mostrarTab('login')" style="color:#39ff14;cursor:pointer;">Entrar</span>
+    </p>
+  </div>
+
+</div><!-- /onboarding -->
+
+<!-- ═══════════════════════════════
+     MODAL: CARD DE TREINO PARA COMPARTILHAR
+═══════════════════════════════ -->
+<div id="modal-share" style="
+  display:none;position:fixed;inset:0;z-index:2000;
+  background:rgba(0,0,0,0.92);backdrop-filter:blur(12px);
+  align-items:center;justify-content:center;flex-direction:column;
+  padding:20px;
+">
+  <div style="width:100%;max-width:380px;">
+
+    <!-- Card exportável -->
+    <div id="share-card" style="
+      background:linear-gradient(135deg,#0d0d0d 0%,#111 100%);
+      border:1px solid #222;border-radius:20px;
+      padding:24px;margin-bottom:16px;
+      position:relative;overflow:hidden;
+    ">
+      <!-- Glow de fundo -->
+      <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;
+        background:radial-gradient(circle,rgba(57,255,20,0.15),transparent 70%);
+        border-radius:50%;pointer-events:none;"></div>
+
+      <!-- Header do card -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#39ff14">
+            <path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/>
+          </svg>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:#fff;">VELOX</span>
+        </div>
+        <div id="share-tipo-badge" style="background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;color:#39ff14;">🏃 CORRIDA</div>
+      </div>
+
+      <!-- Distância principal -->
+      <div style="text-align:center;margin-bottom:20px;">
+        <div id="share-dist" style="font-family:'Barlow Condensed',sans-serif;font-size:72px;font-weight:900;color:#39ff14;letter-spacing:-3px;line-height:1;text-shadow:0 0 30px rgba(57,255,20,0.4);">0.00</div>
+        <div style="font-size:13px;color:#444;letter-spacing:0.15em;text-transform:uppercase;">quilômetros</div>
+      </div>
+
+      <!-- Stats em grade -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
+        <div style="text-align:center;background:rgba(255,255,255,0.03);border-radius:10px;padding:10px 6px;">
+          <div id="share-tempo" style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:#fff;">00:00</div>
+          <div style="font-size:9px;color:#444;letter-spacing:0.1em;margin-top:2px;">TEMPO</div>
+        </div>
+        <div style="text-align:center;background:rgba(255,255,255,0.03);border-radius:10px;padding:10px 6px;">
+          <div id="share-pace" style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:#fff;">--:--</div>
+          <div style="font-size:9px;color:#444;letter-spacing:0.1em;margin-top:2px;">PACE</div>
+        </div>
+        <div style="text-align:center;background:rgba(255,255,255,0.03);border-radius:10px;padding:10px 6px;">
+          <div id="share-cal" style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:#ffb347;">0</div>
+          <div style="font-size:9px;color:#444;letter-spacing:0.1em;margin-top:2px;">KCAL</div>
+        </div>
+      </div>
+
+      <!-- Mapa mini -->
+      <div id="share-mapa" style="height:140px;border-radius:12px;overflow:hidden;margin-bottom:16px;background:#0a0a0a;"></div>
+
+      <!-- Zona cardíaca (se tiver BPM) -->
+      <div id="share-bpm-row" style="display:none;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(255,107,138,0.08);border:1px solid rgba(255,107,138,0.2);border-radius:10px;margin-bottom:16px;">
+        <span style="font-size:12px;color:#ff6b8a;">❤️ FC Média</span>
+        <span id="share-bpm" style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:#ff6b8a;">--- bpm</span>
+      </div>
+
+      <!-- Footer do card -->
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div id="share-nome-atleta" style="font-size:11px;color:#333;">@atleta</div>
+        <div id="share-data" style="font-size:11px;color:#333;">hoje</div>
+      </div>
+    </div>
+
+    <!-- Botões de ação -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button onclick="VX.baixarCard()"
+        style="flex:1;padding:13px;border-radius:12px;border:none;background:#39ff14;color:#000;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;letter-spacing:1px;cursor:pointer;">
+        📥 SALVAR IMAGEM
+      </button>
+      <button onclick="VX.compartilharNativo()"
+        style="flex:1;padding:13px;border-radius:12px;border:none;background:#1a1a1a;border:1px solid #333;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;letter-spacing:1px;cursor:pointer;">
+        ↗ COMPARTILHAR
+      </button>
+    </div>
+    <button onclick="VX.fecharShare()"
+      style="width:100%;padding:12px;border-radius:12px;border:1px solid #222;background:transparent;color:#444;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;cursor:pointer;">
+      FECHAR
+    </button>
+  </div>
+</div><!-- /modal-share -->
 
 <!-- MAPA -->
 <div id="mapa"></div>
@@ -25,7 +219,7 @@
     <svg class="logo-bolt" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/>
     </svg>
-    <span style="color:var(--txt)">VEL</span><span>OX</span>
+    VELOX
   </div>
   <div class="badges">
     <div class="badge" id="badge-rede" onclick="VX.verificarRede()">
